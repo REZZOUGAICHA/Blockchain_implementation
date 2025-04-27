@@ -44,35 +44,33 @@ MerkleNode
 ```
 
 ## Data Flow Graph
-
 ```mermaid
 graph TD
-    Blockchain["Blockchain"]
-    Block["Block"]
-    Event["Event"]
-    MerkleNode["MerkleNode"]
-
-    Blockchain -->|contains| Block
-    Block -->|contains| Event
-    Block -->|uses for merkle_root| MerkleNode
-    MerkleNode -->|left child| MerkleNodeLeft[Child Node]
-    MerkleNode -->|right child| MerkleNodeRight[Child Node]
-
-    Blockchain -->|functions| CreateBlockchain[+create_blockchain()]
-    Blockchain -->|functions| AddEvent[+add_event_to_blockchain()]
-    Blockchain -->|functions| ConfirmBlock[+confirm_block()]
-    Blockchain -->|functions| PrintBlockchain[+print_blockchain()]
-    Blockchain -->|functions| FreeBlockchain[+free_blockchain()]
-
-    Block -->|functions| CreateBlock[+create_block()]
-    Block -->|functions| AddEventBlock[+add_event_to_block()]
-    Block -->|functions| CalcMerkle[+calculate_merkle_root()]
-    Block -->|functions| CalcHash[+calculate_block_hash()]
-    Block -->|functions| PrintBlock[+print_block()]
-
-    MerkleNode -->|functions| CreateNode[+create_merkle_node()]
-    MerkleNode -->|functions| BuildTree[+build_merkle_tree()]
-    MerkleNode -->|functions| CalcParentHash[+calculate_parent_hash()]
+    Blockchain[Blockchain] --> Genesis[Genesis Block]
+    Blockchain --> LastBlock[Last Block]
+    Blockchain --> CurrentMiningBlock[Current Mining Block]
+    
+    Block[Block] --> Index[Index]
+    Block --> Timestamp[Timestamp]
+    Block --> PreviousHash[Previous Hash]
+    Block --> EventsArray[Events Array]
+    Block --> MerkleRoot[Merkle Root]
+    Block --> BlockHash[Block Hash]
+    Block --> NextBlock[Next Block Pointer]
+    
+    Event[Event] --> Type[Type]
+    Event --> Data[Data]
+    Event --> EventTimestamp[Timestamp]
+    Event --> EventHash[Hash]
+    
+    EventsArray --> Event
+    
+    MerkleTree[Merkle Tree] --> MerkleNode[Merkle Node]
+    MerkleNode --> NodeHash[Hash]
+    MerkleNode --> LeftChild[Left Child]
+    MerkleNode --> RightChild[Right Child]
+    
+    Block --> MerkleTree
 ```
 
 
