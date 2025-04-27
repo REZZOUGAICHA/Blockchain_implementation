@@ -3,461 +3,298 @@
 #include <string.h>
 #include <time.h>
 
-#define HASH_SIZE 64  // Taille d'un hash en caractères hexadécimaux
-#define INITIAL_CAPACITY 10
-#define MAX_EVENTS_PER_BLOCK 100  // Limite d'événements par bloc
+#define HASH_SIZE 64
+#define MAX_EVENTS 100
 
-// Structure générique d'un événement
+// Core data structures - preserved from original
 typedef struct {
-    int type;                // Type d'événement (1: transfert, 2: message, etc.)
-    char data[256];          // Données de l'événement au format JSON ou autre
-    char timestamp[30];      // Horodatage de l'événement
-    char hash[HASH_SIZE+1];  // Hash de l'événement
+    int type;
+    char data[256];
+    char timestamp[30];
+    char hash[HASH_SIZE+1];
 } Event;
 
-// Structure pour un nœud de l'arbre de Merkle
 typedef struct MerkleNode {
     char hash[HASH_SIZE+1];
     struct MerkleNode* left;
     struct MerkleNode* right;
 } MerkleNode;
 
-// Structure d'un bloc
 typedef struct Block {
-    int index;                       // ID du bloc
-    time_t timestamp;                // Horodatage de création
-    char previous_hash[HASH_SIZE+1]; // Hash du bloc précédent
-    Event* events;                   // Tableau dynamique d'événements
-    int event_count;                 // Nombre d'événements dans le bloc
-    int event_capacity;              // Capacité du tableau d'événements
-    int nonce;                       // Nonce utilisé pour le minage
-    char merkle_root[HASH_SIZE+1];   // Racine de l'arbre de Merkle
-    char hash[HASH_SIZE+1];          // Hash du bloc courant
-    struct Block* next;              // Pointeur vers le bloc suivant
+    int index;
+    time_t timestamp;
+    char previous_hash[HASH_SIZE+1];
+    Event* events;
+    int event_count;
+    int event_capacity;
+    int nonce;
+    char merkle_root[HASH_SIZE+1];
+    char hash[HASH_SIZE+1];
+    struct Block* next;
 } Block;
 
-// Structure de la blockchain
 typedef struct {
-    Block* genesis;          // Premier bloc de la chaîne
-    Block* last_block;       // Dernier bloc de la chaîne
-    int block_count;         // Nombre de blocs dans la chaîne
-    Block* current_mining_block; // Bloc en cours de minage (non confirmé)
+    Block* genesis;
+    Block* last_block;
+    int block_count;
+    Block* current_mining_block;
 } Blockchain;
 
-// Forward declarations
-void free_merkle_tree(MerkleNode* root);
-void free_block(Block* block);
-
-// Fonction pour libérer la mémoire d'un bloc
-void free_block(Block* block) {
-    if (block != NULL) {
-        free(block->events);
-        free(block);
-    }
-}
-
-// Fonction simplifiée pour calculer un hash (à remplacer par une vraie fonction de hachage)
-void calculate_hash_string(const char* input, char* output) {
-    // Ceci est une simulation de hachage pour l'exemple
-    // À remplacer par SHA-256 ou autre algorithme cryptographique
-    
-    // Pour l'exemple, nous utilisons une fonction très simple
+// Simplified hash function
+void hash_data(const char* input, char* output) {
     unsigned long hash = 5381;
-    int c;
-    const char* ptr = input;
-    
-    while ((c = *ptr++)) {
-        hash = ((hash << 5) + hash) + c; // hash * 33 + c
-    }
-    
+    while (*input) hash = ((hash << 5) + hash) + *input++;
     sprintf(output, "%016lx", hash);
     
-    // Compléter le hash avec des zéros
+    // Fill with zeros to reach HASH_SIZE
     int len = strlen(output);
-    for (int i = len; i < HASH_SIZE; i++) {
-        output[i] = '0';
-    }
+    memset(output + len, '0', HASH_SIZE - len);
     output[HASH_SIZE] = '\0';
 }
 
-// Fonction pour calculer le hash d'un événement
-void calculate_event_hash(Event* event) {
+// Event operations
+void hash_event(Event* event) {
     char buffer[512];
     sprintf(buffer, "%d%s%s", event->type, event->data, event->timestamp);
-    calculate_hash_string(buffer, event->hash);
+    hash_data(buffer, event->hash);
 }
 
-// Fonction pour créer un nœud de l'arbre de Merkle
-MerkleNode* create_merkle_node(const char* hash) {
-    MerkleNode* node = (MerkleNode*)malloc(sizeof(MerkleNode));
-    if (node == NULL) {
-        fprintf(stderr, "Erreur d'allocation mémoire pour un nœud de Merkle\n");
-        exit(EXIT_FAILURE);
-    }
-    
+// Merkle tree operations
+MerkleNode* create_node(const char* hash) {
+    MerkleNode* node = malloc(sizeof(MerkleNode));
     strcpy(node->hash, hash);
-    node->left = NULL;
-    node->right = NULL;
-    
+    node->left = node->right = NULL;
     return node;
 }
 
-// Fonction pour libérer un arbre de Merkle
-void free_merkle_tree(MerkleNode* root) {
-    if (root == NULL) return;
-    
-    // On sauvegarde les enfants avant de libérer le parent
-    MerkleNode* left = root->left;
-    MerkleNode* right = root->right;
-    
-    // Libérer d'abord le nœud actuel
+void free_tree(MerkleNode* root) {
+    if (!root) return;
+    free_tree(root->left);
+    free_tree(root->right);
     free(root);
-    
-    // Puis libérer récursivement les enfants
-    if (left) free_merkle_tree(left);
-    if (right) free_merkle_tree(right);
 }
 
-// Fonction pour calculer le hash d'un nœud parent dans l'arbre de Merkle
-void calculate_parent_hash(const char* left_hash, const char* right_hash, char* parent_hash) {
+// Recursive merkle tree builder
+MerkleNode* build_tree(char** hashes, int start, int end) {
+    if (start > end) return NULL;
+    if (start == end) return create_node(hashes[start]);
+    
+    int mid = (start + end) / 2;
+    MerkleNode* left = build_tree(hashes, start, mid);
+    MerkleNode* right = build_tree(hashes, mid + 1, end);
+    
+    // Handle odd number of nodes
+    if (!right) right = create_node(left->hash);
+    
+    // Create parent node with combined hash
+    MerkleNode* parent = create_node("");
     char combined[HASH_SIZE*2 + 1];
-    sprintf(combined, "%s%s", left_hash, right_hash);
-    calculate_hash_string(combined, parent_hash);
+    sprintf(combined, "%s%s", left->hash, right->hash);
+    hash_data(combined, parent->hash);
+    
+    parent->left = left;
+    parent->right = right;
+    return parent;
 }
 
-// Correction dans la fonction build_merkle_tree
-MerkleNode* build_merkle_tree(char** event_hashes, int count) {
-    if (count == 0) return NULL;
-    
-    // Créer un tableau de nœuds de feuilles
-    MerkleNode** nodes = (MerkleNode**)malloc(count * sizeof(MerkleNode*));
-    for (int i = 0; i < count; i++) {
-        nodes[i] = create_merkle_node(event_hashes[i]);
-    }
-    
-    // S'il n'y a qu'un seul événement, retourner son nœud directement
-    if (count == 1) {
-        MerkleNode* root = nodes[0];
-        free(nodes);
-        return root;
-    }
-    
-    int current_level_size = count;
-    int next_level_size;
-    
-    // Construire l'arbre niveau par niveau
-    while (current_level_size > 1) {
-        next_level_size = (current_level_size + 1) / 2;  // Arrondir vers le haut
-        
-        for (int i = 0; i < next_level_size; i++) {
-            int left_idx = i * 2;
-            int right_idx = left_idx + 1;
-            
-            MerkleNode* left = nodes[left_idx];
-            // CORRECTION: Ne pas dupliquer le nœud mais créer une copie du hash
-            MerkleNode* right;
-            if (right_idx < current_level_size) {
-                right = nodes[right_idx];
-            } else {
-                // Utiliser le même hash mais créer un nouveau nœud
-                right = create_merkle_node(left->hash);
-            }
-            
-            MerkleNode* parent = create_merkle_node("");
-            calculate_parent_hash(left->hash, right->hash, parent->hash);
-            
-            parent->left = left;
-            parent->right = right;
-            
-            nodes[i] = parent;
-        }
-        
-        current_level_size = next_level_size;
-    }
-    
-    // Le premier nœud est maintenant la racine
-    MerkleNode* root = nodes[0];
-    free(nodes);
-    return root;
-}
-
-// Fonction pour calculer la racine de Merkle d'un bloc - avec correction
+// Calculate merkle root for a block
 void calculate_merkle_root(Block* block) {
     if (block->event_count == 0) {
-        // Cas spécial: pas d'événements
         memset(block->merkle_root, '0', HASH_SIZE);
         block->merkle_root[HASH_SIZE] = '\0';
         return;
     }
     
-    // Extraire les hashes des événements
-    char** event_hashes = (char**)malloc(block->event_count * sizeof(char*));
+    char** hashes = malloc(block->event_count * sizeof(char*));
     for (int i = 0; i < block->event_count; i++) {
-        event_hashes[i] = block->events[i].hash;
+        hashes[i] = block->events[i].hash;
     }
     
-    // Construire l'arbre de Merkle
-    MerkleNode* root = build_merkle_tree(event_hashes, block->event_count);
-    
-    // Copier le hash de la racine
+    MerkleNode* root = build_tree(hashes, 0, block->event_count - 1);
     strcpy(block->merkle_root, root->hash);
     
-    // Libérer la mémoire
-    free_merkle_tree(root);
-    free(event_hashes);
+    free_tree(root);
+    free(hashes);
 }
 
-// Alternative: version non récursive pour éviter les problèmes de pile
-void free_merkle_tree_iterative(MerkleNode* root) {
-    if (root == NULL) return;
-    
-    // Créer une pile pour stocker les nœuds à libérer
-    MerkleNode** stack = (MerkleNode**)malloc(1000 * sizeof(MerkleNode*)); // Taille arbitraire
-    int top = 0;
-    
-    // Ajouter la racine à la pile
-    stack[top++] = root;
-    
-    while (top > 0) {
-        // Prendre un nœud de la pile
-        MerkleNode* node = stack[--top];
-        
-        // Ajouter ses enfants à la pile s'ils existent
-        if (node->right) stack[top++] = node->right;
-        if (node->left) stack[top++] = node->left;
-        
-        // Libérer le nœud
-        free(node);
-    }
-    
-    free(stack);
-}
-
-// Fonction pour libérer la mémoire de la blockchain - avec correction
-void free_blockchain(Blockchain* blockchain) {
-    if (blockchain == NULL) {
-        return;
-    }
-    
-    Block* current = blockchain->genesis;
-    
-    while (current != NULL) {
-        Block* next = current->next;
-        free_block(current);
-        current = next;
-    }
-    
-    // Vérifier si le bloc en cours de minage n'est pas déjà dans la chaîne
-    // (il ne doit pas l'être normalement, mais on vérifie par sécurité)
-    Block* last = blockchain->last_block;
-    Block* mining = blockchain->current_mining_block;
-    
-    if (mining != NULL && (last == NULL || mining != last)) {
-        free_block(mining);
-    }
-    
-    free(blockchain);
-}
-
-// Fonction pour calculer le hash d'un bloc
-void calculate_block_hash(Block* block) {
+// Block operations
+void hash_block(Block* block) {
     char buffer[1024];
     sprintf(buffer, "%d%ld%s%s%d", 
-            block->index, 
-            block->timestamp, 
-            block->previous_hash, 
-            block->merkle_root, 
-            block->nonce);
-    
-    calculate_hash_string(buffer, block->hash);
+            block->index, block->timestamp, 
+            block->previous_hash, block->merkle_root, block->nonce);
+    hash_data(buffer, block->hash);
 }
 
-// Fonction pour créer un nouveau bloc
-Block* create_block(int index, const char* previous_hash) {
-    Block* block = (Block*)malloc(sizeof(Block));
-    if (block == NULL) {
-        fprintf(stderr, "Erreur d'allocation mémoire pour le bloc\n");
-        exit(EXIT_FAILURE);
-    }
+Block* create_block(int index, const char* prev_hash) {
+    Block* block = malloc(sizeof(Block));
     
     block->index = index;
     block->timestamp = time(NULL);
-    strcpy(block->previous_hash, previous_hash);
+    strcpy(block->previous_hash, prev_hash);
     
-    // Initialiser le tableau dynamique d'événements
-    block->event_capacity = INITIAL_CAPACITY;
-    block->events = (Event*)malloc(block->event_capacity * sizeof(Event));
-    if (block->events == NULL) {
-        fprintf(stderr, "Erreur d'allocation mémoire pour les événements\n");
-        free(block);
-        exit(EXIT_FAILURE);
-    }
-    
+    // Initialize events array
+    block->event_capacity = 10;  // Start with space for 10 events
+    block->events = malloc(block->event_capacity * sizeof(Event));
     block->event_count = 0;
     block->nonce = 0;
     block->next = NULL;
     
-    // Initialiser le hash et la racine de Merkle
-    memset(block->hash, 0, HASH_SIZE+1);
-    memset(block->merkle_root, 0, HASH_SIZE+1);
-    
     return block;
 }
 
-// Fonction pour ajouter un événement à un bloc
-int add_event_to_block(Block* block, int type, const char* data) {
-    // Vérifier si le bloc est plein
-    if (block->event_count >= MAX_EVENTS_PER_BLOCK) {
-        return 0;  // Bloc plein
+void free_block(Block* block) {
+    if (block) {
+        free(block->events);
+        free(block);
     }
+}
+
+// Add event to a block, return 1 on success, 0 if full
+int add_event(Block* block, int type, const char* data) {
+    if (block->event_count >= MAX_EVENTS) return 0;
     
-    // Vérifier si le tableau d'événements doit être redimensionné
+    // Expand capacity if needed
     if (block->event_count >= block->event_capacity) {
-        int new_capacity = block->event_capacity * 2;
-        if (new_capacity > MAX_EVENTS_PER_BLOCK) {
-            new_capacity = MAX_EVENTS_PER_BLOCK;
-        }
-        
-        Event* new_events = (Event*)realloc(block->events, new_capacity * sizeof(Event));
-        if (new_events == NULL) {
-            return 0;  // Échec du redimensionnement
-        }
+        block->event_capacity *= 2;
+        if (block->event_capacity > MAX_EVENTS) 
+            block->event_capacity = MAX_EVENTS;
+            
+        Event* new_events = realloc(block->events, block->event_capacity * sizeof(Event));
+        if (!new_events) return 0;
         block->events = new_events;
-        block->event_capacity = new_capacity;
     }
     
-    // Ajouter le nouvel événement
-    Event* event = &block->events[block->event_count];
+    // Add the event
+    Event* event = &block->events[block->event_count++];
     event->type = type;
     strncpy(event->data, data, sizeof(event->data) - 1);
-    event->data[sizeof(event->data) - 1] = '\0';  // Assurer la terminaison
+    event->data[sizeof(event->data) - 1] = '\0';
     
-    // Horodatage de l'événement
+    // Set timestamp
     time_t now = time(NULL);
     strftime(event->timestamp, sizeof(event->timestamp), 
              "%Y-%m-%d %H:%M:%S", localtime(&now));
     
-    // Calculer le hash de l'événement
-    calculate_event_hash(event);
+    // Calculate hash
+    hash_event(event);
     
-    block->event_count++;
-    
-    // Recalculer la racine de Merkle et le hash du bloc
+    // Update block hash
     calculate_merkle_root(block);
-    calculate_block_hash(block);
+    hash_block(block);
     
-    return 1;  // Succès
+    return 1;
 }
 
-// Fonction pour créer une nouvelle blockchain
+// Blockchain operations
 Blockchain* create_blockchain() {
-    Blockchain* blockchain = (Blockchain*)malloc(sizeof(Blockchain));
-    if (blockchain == NULL) {
-        fprintf(stderr, "Erreur d'allocation mémoire pour la blockchain\n");
-        exit(EXIT_FAILURE);
-    }
+    Blockchain* chain = malloc(sizeof(Blockchain));
     
-    // Créer le bloc genesis
+    // Create genesis block
     Block* genesis = create_block(0, "0000000000000000000000000000000000000000000000000000000000000000");
     calculate_merkle_root(genesis);
-    calculate_block_hash(genesis);
+    hash_block(genesis);
     
-    blockchain->genesis = genesis;
-    blockchain->last_block = genesis;
-    blockchain->block_count = 1;
-    blockchain->current_mining_block = create_block(1, genesis->hash);
+    chain->genesis = genesis;
+    chain->last_block = genesis;
+    chain->block_count = 1;
+    chain->current_mining_block = create_block(1, genesis->hash);
     
-    return blockchain;
+    return chain;
 }
 
-// Fonction pour confirmer un bloc (finaliser le minage)
-void confirm_block(Blockchain* blockchain) {
-    // Ajouter le bloc à la chaîne
-    Block* new_block = blockchain->current_mining_block;
+void confirm_block(Blockchain* chain) {
+    Block* new_block = chain->current_mining_block;
     
-    // Finaliser le bloc
+    // Finalize the block
     calculate_merkle_root(new_block);
-    calculate_block_hash(new_block);
+    hash_block(new_block);
     
-    // Mettre à jour les liens
-    blockchain->last_block->next = new_block;
-    blockchain->last_block = new_block;
-    blockchain->block_count++;
+    // Add to chain
+    chain->last_block->next = new_block;
+    chain->last_block = new_block;
+    chain->block_count++;
     
-    // Créer un nouveau bloc pour le minage
-    blockchain->current_mining_block = create_block(blockchain->block_count, new_block->hash);
+    // Create new mining block
+    chain->current_mining_block = create_block(chain->block_count, new_block->hash);
 }
 
-// Fonction pour ajouter un événement à la blockchain
-int add_event_to_blockchain(Blockchain* blockchain, int type, const char* data) {
-    // Essayer d'ajouter l'événement au bloc en cours de minage
-    int result = add_event_to_block(blockchain->current_mining_block, type, data);
+// Add event to blockchain
+int add_blockchain_event(Blockchain* chain, int type, const char* data) {
+    int result = add_event(chain->current_mining_block, type, data);
     
-    // Si le bloc est plein, confirmer le bloc et créer un nouveau
+    // If block full, confirm it and try again
     if (result == 0) {
-        confirm_block(blockchain);
-        result = add_event_to_block(blockchain->current_mining_block, type, data);
+        confirm_block(chain);
+        result = add_event(chain->current_mining_block, type, data);
     }
     
     return result;
 }
 
-// Fonction pour afficher un bloc
-void print_block(const Block* block) {
-    printf("Bloc #%d\n", block->index);
-    printf("Timestamp: %s", ctime(&block->timestamp));
-    printf("Hash du bloc précédent: %s\n", block->previous_hash);
-    printf("Racine de Merkle: %s\n", block->merkle_root);
-    printf("Hash du bloc: %s\n", block->hash);
-    printf("Nonce: %d\n", block->nonce);
-    printf("Événements (%d/%d):\n", block->event_count, MAX_EVENTS_PER_BLOCK);
+// Free blockchain memory
+void free_blockchain(Blockchain* chain) {
+    Block *current = chain->genesis, *next;
+    
+    while (current) {
+        next = current->next;
+        free_block(current);
+        current = next;
+    }
+    
+    // Free mining block if not in chain
+    if (chain->current_mining_block != chain->last_block) {
+        free_block(chain->current_mining_block);
+    }
+    
+    free(chain);
+}
+
+// Display functions
+void print_block(Block* block) {
+    printf("Block #%d\n", block->index);
+    printf("Time: %s", ctime(&block->timestamp));
+    printf("Previous hash: %s\n", block->previous_hash);
+    printf("Merkle root: %s\n", block->merkle_root);
+    printf("Block hash: %s\n", block->hash);
+    printf("Events: %d\n", block->event_count);
     
     for (int i = 0; i < block->event_count; i++) {
-        printf("  Événement %d:\n", i+1);
-        printf("    Type: %d\n", block->events[i].type);
-        printf("    Données: %s\n", block->events[i].data);
-        printf("    Horodatage: %s\n", block->events[i].timestamp);
-        printf("    Hash: %s\n", block->events[i].hash);
+        printf("  [%d] Type: %d | Data: %s\n", 
+               i+1, block->events[i].type, block->events[i].data);
     }
     printf("\n");
 }
 
-// Fonction pour afficher la blockchain
-void print_blockchain(const Blockchain* blockchain) {
-    printf("Blockchain (%d blocs):\n", blockchain->block_count);
+void print_blockchain(Blockchain* chain) {
+    printf("=== BLOCKCHAIN (%d blocks) ===\n\n", chain->block_count);
     
-    Block* current = blockchain->genesis;
-    while (current != NULL) {
+    Block* current = chain->genesis;
+    while (current) {
         print_block(current);
         current = current->next;
     }
     
-    printf("Bloc en cours de minage:\n");
-    print_block(blockchain->current_mining_block);
+    printf("=== MINING BLOCK ===\n");
+    print_block(chain->current_mining_block);
 }
 
-// Exemple d'utilisation
+// Interactive main function
 int main() {
-    // Créer une nouvelle blockchain
-    Blockchain* blockchain = create_blockchain();
+    Blockchain* chain = create_blockchain();
     
-    // Ajouter des événements à la blockchain
-    add_event_to_blockchain(blockchain, 1, "{\"from\":\"System\",\"to\":\"Alice\",\"amount\":100}");
-    add_event_to_blockchain(blockchain, 1, "{\"from\":\"System\",\"to\":\"Bob\",\"amount\":50}");
-    add_event_to_blockchain(blockchain, 2, "{\"message\":\"Blockchain initialized\"}");
+    // Add sample events
+    add_blockchain_event(chain, 1, "{\"from\":\"System\",\"to\":\"Alice\",\"amount\":100}");
+    add_blockchain_event(chain, 1, "{\"from\":\"System\",\"to\":\"Bob\",\"amount\":50}");
+    add_blockchain_event(chain, 2, "{\"message\":\"Blockchain initialized\"}");
     
-    // Confirmer le premier bloc
-    confirm_block(blockchain);
+    confirm_block(chain);
     
-    // Ajouter d'autres événements
-    add_event_to_blockchain(blockchain, 1, "{\"from\":\"Alice\",\"to\":\"Bob\",\"amount\":10}");
-    add_event_to_blockchain(blockchain, 3, "{\"action\":\"contract_execution\",\"contract_id\":123}");
+    add_blockchain_event(chain, 1, "{\"from\":\"Alice\",\"to\":\"Bob\",\"amount\":10}");
+    add_blockchain_event(chain, 3, "{\"action\":\"contract_execution\",\"id\":123}");
     
-    // Afficher la blockchain
-    print_blockchain(blockchain);
-    
-    // Libérer la mémoire
-    free_blockchain(blockchain);
+    print_blockchain(chain);
+    free_blockchain(chain);
     
     return 0;
 }
