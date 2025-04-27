@@ -47,61 +47,34 @@ MerkleNode
 
 ```mermaid
 graph TD
-    classDiagram
-    class Blockchain {
-        -Block* genesis
-        -Block* last_block
-        -int block_count
-        -Block* current_mining_block
-        +create_blockchain()
-        +add_event_to_blockchain()
-        +confirm_block()
-        +print_blockchain()
-        +free_blockchain()
-    }
+    Blockchain["Blockchain"]
+    Block["Block"]
+    Event["Event"]
+    MerkleNode["MerkleNode"]
 
-    class Block {
-        -int index
-        -time_t timestamp
-        -char previous_hash[HASH_SIZE+1]
-        -Event* events
-        -int event_count
-        -int event_capacity
-        -int nonce
-        -char merkle_root[HASH_SIZE+1]
-        -char hash[HASH_SIZE+1]
-        -Block* next
-        +create_block()
-        +add_event_to_block()
-        +calculate_merkle_root()
-        +calculate_block_hash()
-        +print_block()
-    }
+    Blockchain -->|contains| Block
+    Block -->|contains| Event
+    Block -->|uses for merkle_root| MerkleNode
+    MerkleNode -->|left child| MerkleNodeLeft[Child Node]
+    MerkleNode -->|right child| MerkleNodeRight[Child Node]
 
-    class Event {
-        -int type
-        -char data[256]
-        -char timestamp[30]
-        -char hash[HASH_SIZE+1]
-    }
+    Blockchain -->|functions| CreateBlockchain[+create_blockchain()]
+    Blockchain -->|functions| AddEvent[+add_event_to_blockchain()]
+    Blockchain -->|functions| ConfirmBlock[+confirm_block()]
+    Blockchain -->|functions| PrintBlockchain[+print_blockchain()]
+    Blockchain -->|functions| FreeBlockchain[+free_blockchain()]
 
-    class MerkleNode {
-        -char hash[HASH_SIZE+1]
-        -MerkleNode* left
-        -MerkleNode* right
-        +create_merkle_node()
-        +build_merkle_tree()
-        +calculate_parent_hash()
-    }
+    Block -->|functions| CreateBlock[+create_block()]
+    Block -->|functions| AddEventBlock[+add_event_to_block()]
+    Block -->|functions| CalcMerkle[+calculate_merkle_root()]
+    Block -->|functions| CalcHash[+calculate_block_hash()]
+    Block -->|functions| PrintBlock[+print_block()]
 
-    Blockchain "1" *-- "1..*" Block : contains
-    Block "1" *-- "0..*" Event : contains
-    Block "1" --* "1" MerkleNode : uses for merkle_root
-    MerkleNode "1" *-- "0..2" MerkleNode : left/right children
-
-    note for Block "Each block contains:\n- Metadata (index, timestamp, etc.)\n- List of events\n- Merkle root of event hashes\n- Hash of previous block\n- Its own hash"
-    note for MerkleNode "Binary tree structure where:\n- Leaf nodes are event hashes\n- Parent nodes are hashes of child nodes\n- Root hash stored in block header"
+    MerkleNode -->|functions| CreateNode[+create_merkle_node()]
+    MerkleNode -->|functions| BuildTree[+build_merkle_tree()]
+    MerkleNode -->|functions| CalcParentHash[+calculate_parent_hash()]
 ```
+
 
 ## Merkle tree
 ```mermaid
