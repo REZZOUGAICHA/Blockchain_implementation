@@ -1,3 +1,4 @@
+
 # Simple Blockchain Implementation in C
 
 ## Overview
@@ -6,37 +7,40 @@ This code implements a basic blockchain system with Merkle trees in C. It create
 ## Blockchain Structure
 
 ### Global Architecture
+```plaintext
 Blockchain
-├── genesis: Block* (premier bloc)
-├── last_block: Block* (dernier bloc confirmé)
+├── genesis: Block* (first block)
+├── last_block: Block* (last confirmed block)
 ├── block_count: int
-└── current_mining_block: Block* (bloc en cours de minage)
-
+└── current_mining_block: Block* (block being mined)
+```
 
 ### Block Structure
+```plaintext
 Block
-├── index: int (ID séquentiel)
+├── index: int (sequential ID)
 ├── timestamp: time_t
 ├── previous_hash: char[HASH_SIZE+1]
-├── events: Event* (tableau dynamique)
-│ ├── type: int
-│ ├── data: char[256]
-│ ├── timestamp: char[30]
-│ └── hash: char[HASH_SIZE+1]
+├── events: Event* (dynamic array)
+│   ├── type: int
+│   ├── data: char[256]
+│   ├── timestamp: char[30]
+│   └── hash: char[HASH_SIZE+1]
 ├── event_count: int
 ├── event_capacity: int
 ├── nonce: int
 ├── merkle_root: char[HASH_SIZE+1]
 ├── hash: char[HASH_SIZE+1]
-└── next: Block* (lien vers bloc suivant)
-
+└── next: Block* (link to next block)
+```
 
 ### Merkle Tree Structure
+```plaintext
 MerkleNode
 ├── hash: char[HASH_SIZE+1]
 ├── left: MerkleNode*
 └── right: MerkleNode*
-
+```
 
 ## Data Flow Graph
 
@@ -53,52 +57,58 @@ graph TD
     
     MiningBlock -->|will become| NextBlock
     
-    each Block --> Events
-    each Block --> MerkleTree
+    Block1 --> Events1
+    Block2 --> Events2
+    BlockN --> EventsN
     
-    Events --> Event1
-    Events --> Event2
-    Events --> EventN
+    Events1 --> Event1A
+    Events1 --> Event1B
+    Events2 --> Event2A
+    Events2 --> Event2B
+    EventsN --> EventNA
+    EventsN --> EventNB
     
-    MerkleTree -->|root| MerkleRoot
-    MerkleTree --> Leaf1[Hash Event1]
-    MerkleTree --> Leaf2[Hash Event2]
-    MerkleTree --> LeafN[Hash EventN]
+    Block1 --> MerkleTree1
+    Block2 --> MerkleTree2
+    BlockN --> MerkleTreeN
     
+    MerkleTree1 -->|root| MerkleRoot1
+    MerkleTree2 -->|root| MerkleRoot2
+    MerkleTreeN -->|root| MerkleRootN
+    
+    MerkleTree1 --> Leaf1A[Hash Event1A]
+    MerkleTree1 --> Leaf1B[Hash Event1B]
+    MerkleTree2 --> Leaf2A[Hash Event2A]
+    MerkleTree2 --> Leaf2B[Hash Event2B]
+    MerkleTreeN --> LeafNA[Hash EventNA]
+    MerkleTreeN --> LeafNB[Hash EventNB]
+```
+
+---
+
 ## Key Features
-Block Creation and Linking: New blocks maintain the chain's integrity by including the previous block's hash
+- **Block Creation and Linking**: New blocks maintain the chain's integrity by including the previous block's hash.
+- **Dynamic Event Management**: Blocks can store multiple events with automatic capacity adjustment.
+- **Merkle Tree Integration**: Events in each block are secured using a Merkle tree structure.
+- **Memory Management**: Proper allocation and deallocation to prevent memory leaks.
 
-Dynamic Event Management: Blocks can store multiple events with automatic capacity adjustment
+## Code Structure
+- **Data Structures**: `Event`, `MerkleNode`, `Block`, and `Blockchain`
+- **Hashing Functions**: Simple hash implementation (replaceable with cryptographic algorithms)
+- **Merkle Tree Operations**: Creation, maintenance, and memory management
+- **Blockchain Operations**: Block creation, event addition, and chain validation
 
-Merkle Tree Integration: Events in each block are secured using a Merkle tree structure
+## Usage Example
+The `main` function demonstrates creating a blockchain, adding various transaction events, and displaying the resulting chain structure.
 
-Memory Management: Proper allocation and deallocation to prevent memory leaks
+## Technical Notes
+- Uses a simplified hash function (for educational purposes only)
+- Implements proper memory management to prevent leaks
+- Includes both recursive and iterative approaches to tree traversal
 
-Code Structure
-Data Structures: Event, MerkleNode, Block, and Blockchain
-
-Hashing Functions: Simple hash implementation (replaceable with cryptographic algorithms)
-
-Merkle Tree Operations: Creation, maintenance, and memory management
-
-Blockchain Operations: Block creation, event addition, and chain validation
-
-Usage Example
-The main function demonstrates creating a blockchain, adding various transaction events, and displaying the resulting chain structure.
-
-Technical Notes
-Uses a simplified hash function (for educational purposes only)
-
-Implements proper memory management to prevent leaks
-
-Includes both recursive and iterative approaches to tree traversal
-
-Future Improvements
-Replace the simple hash with cryptographic functions (SHA-256)
-
-Add proof-of-work or consensus mechanisms
-
-Implement transaction validation
-
-Enhance security features
+## Future Improvements
+- Replace the simple hash with cryptographic functions (e.g., SHA-256)
+- Add proof-of-work or consensus mechanisms
+- Implement transaction validation
+- Enhance security features
 
