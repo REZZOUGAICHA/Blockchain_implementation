@@ -77,52 +77,27 @@ graph TD
 ## Merkle tree
 ```mermaid
 graph TD
-    Blockchain["Blockchain"]
-    Block["Block"]
-    Event["Event"]
-    MerkleNode["MerkleNode"]
+    Root[("Merkle Root
+    (Stored in Block Header)")]
+    
+    Root --> Parent1["Parent Hash 1"]
+    Root --> Parent2["Parent Hash 2"]
+    
+    Parent1 --> Leaf1["Event Hash 1"]
+    Parent1 --> Leaf2["Event Hash 2"]
+    
+    Parent2 --> Leaf3["Event Hash 3"]
+    Parent2 --> Leaf4["Event Hash 4"]
+    
+    %% For odd number of leaves
+    Root -.->|If odd leaves| Parent3["Parent Hash 3 (Duplicate of last hash)"]
+    Parent3 --> Leaf5["Event Hash 5"]
+    Parent3 --> Leaf5Copy["Event Hash 5 (Copy)"]
 
-    Blockchain --> Block
-    Block --> Event
-    Block --> MerkleNode
-    MerkleNode --> MerkleNodeLeft["Left Child Node"]
-    MerkleNode --> MerkleNodeRight["Right Child Node"]
-
-    subgraph Blockchain Functions
-        CreateBlockchain["create_blockchain"]
-        AddEventToBlockchain["add_event_to_blockchain"]
-        ConfirmBlock["confirm_block"]
-        PrintBlockchain["print_blockchain"]
-        FreeBlockchain["free_blockchain"]
-    end
-    Blockchain --> CreateBlockchain
-    Blockchain --> AddEventToBlockchain
-    Blockchain --> ConfirmBlock
-    Blockchain --> PrintBlockchain
-    Blockchain --> FreeBlockchain
-
-    subgraph Block Functions
-        CreateBlock["create_block"]
-        AddEventToBlock["add_event_to_block"]
-        CalculateMerkleRoot["calculate_merkle_root"]
-        CalculateBlockHash["calculate_block_hash"]
-        PrintBlock["print_block"]
-    end
-    Block --> CreateBlock
-    Block --> AddEventToBlock
-    Block --> CalculateMerkleRoot
-    Block --> CalculateBlockHash
-    Block --> PrintBlock
-
-    subgraph MerkleNode Functions
-        CreateMerkleNode["create_merkle_node"]
-        BuildMerkleTree["build_merkle_tree"]
-        CalculateParentHash["calculate_parent_hash"]
-    end
-    MerkleNode --> CreateMerkleNode
-    MerkleNode --> BuildMerkleTree
-    MerkleNode --> CalculateParentHash
-
+    classDef node fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef leaf fill:#9f9,stroke:#333,stroke-width:2px;
+    class Root,Parent1,Parent2,Parent3 node;
+    class Leaf1,Leaf2,Leaf3,Leaf4,Leaf5,Leaf5Copy leaf;
 ```
 ---
 
