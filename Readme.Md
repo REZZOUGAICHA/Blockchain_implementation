@@ -5,6 +5,7 @@
 This code implements a basic blockchain system with Merkle trees in C. It creates a data structure to store transactions securely using cryptographic hashing while maintaining historical integrity through linked blocks.
 
 ## Blockchain Structure
+The blockchain is a linked list of blocks, where each block contains a Merkle tree of its events.
 
 ### Global Architecture
 ```plaintext
@@ -46,44 +47,87 @@ MerkleNode
 
 ```mermaid
 graph TD
-    Blockchain --> GenesisBlock
-    Blockchain --> LastBlock
-    Blockchain --> MiningBlock
-    
-    GenesisBlock -->|next| Block1
-    Block1 -->|next| Block2
-    Block2 -->|next| BlockN
-    BlockN --> LastBlock
-    
-    MiningBlock -->|will become| NextBlock
-    
-    Block1 --> Events1
-    Block2 --> Events2
-    BlockN --> EventsN
-    
-    Events1 --> Event1A
-    Events1 --> Event1B
-    Events2 --> Event2A
-    Events2 --> Event2B
-    EventsN --> EventNA
-    EventsN --> EventNB
-    
-    Block1 --> MerkleTree1
-    Block2 --> MerkleTree2
-    BlockN --> MerkleTreeN
-    
-    MerkleTree1 -->|root| MerkleRoot1
-    MerkleTree2 -->|root| MerkleRoot2
-    MerkleTreeN -->|root| MerkleRootN
-    
-    MerkleTree1 --> Leaf1A[Hash Event1A]
-    MerkleTree1 --> Leaf1B[Hash Event1B]
-    MerkleTree2 --> Leaf2A[Hash Event2A]
-    MerkleTree2 --> Leaf2B[Hash Event2B]
-    MerkleTreeN --> LeafNA[Hash EventNA]
-    MerkleTreeN --> LeafNB[Hash EventNB]
+    classDiagram
+    class Blockchain {
+        -Block* genesis
+        -Block* last_block
+        -int block_count
+        -Block* current_mining_block
+        +create_blockchain()
+        +add_event_to_blockchain()
+        +confirm_block()
+        +print_blockchain()
+        +free_blockchain()
+    }
+
+    class Block {
+        -int index
+        -time_t timestamp
+        -char previous_hash[HASH_SIZE+1]
+        -Event* events
+        -int event_count
+        -int event_capacity
+        -int nonce
+        -char merkle_root[HASH_SIZE+1]
+        -char hash[HASH_SIZE+1]
+        -Block* next
+        +create_block()
+        +add_event_to_block()
+        +calculate_merkle_root()
+        +calculate_block_hash()
+        +print_block()
+    }
+
+    class Event {
+        -int type
+        -char data[256]
+        -char timestamp[30]
+        -char hash[HASH_SIZE+1]
+    }
+
+    class MerkleNode {
+        -char hash[HASH_SIZE+1]
+        -MerkleNode* left
+        -MerkleNode* right
+        +create_merkle_node()
+        +build_merkle_tree()
+        +calculate_parent_hash()
+    }
+
+    Blockchain "1" *-- "1..*" Block : contains
+    Block "1" *-- "0..*" Event : contains
+    Block "1" --* "1" MerkleNode : uses for merkle_root
+    MerkleNode "1" *-- "0..2" MerkleNode : left/right children
+
+    note for Block "Each block contains:\n- Metadata (index, timestamp, etc.)\n- List of events\n- Merkle root of event hashes\n- Hash of previous block\n- Its own hash"
+    note for MerkleNode "Binary tree structure where:\n- Leaf nodes are event hashes\n- Parent nodes are hashes of child nodes\n- Root hash stored in block header"
 ```
 
+## Merkle tree
+```mermaid
+graph TD
+    Root[("Merkle Root
+    (Stored in Block Header)")]
+    
+    Root --> Parent1["Parent Hash 1"]
+    Root --> Parent2["Parent Hash 2"]
+    
+    Parent1 --> Leaf1["Event Hash 1"]
+    Parent1 --> Leaf2["Event Hash 2"]
+    
+    Parent2 --> Leaf3["Event Hash 3"]
+    Parent2 --> Leaf4["Event Hash 4"]
+    
+    %% For odd number of leaves
+    Root -.->|If odd leaves| Parent3["Parent Hash 3 (Duplicate of last hash)"]
+    Parent3 --> Leaf5["Event Hash 5"]
+    Parent3 --> Leaf5Copy["Event Hash 5 (Copy)"]
+
+    classDef node fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef leaf fill:#9f9,stroke:#333,stroke-width:2px;
+    class Root,Parent1,Parent2,Parent3 node;
+    class Leaf1,Leaf2,Leaf3,Leaf4,Leaf5,Leaf5Copy leaf;
+```
 ---
 
 ## Key Features
@@ -101,14 +145,5 @@ graph TD
 ## Usage Example
 The `main` function demonstrates creating a blockchain, adding various transaction events, and displaying the resulting chain structure.
 
-## Technical Notes
-- Uses a simplified hash function (for educational purposes only)
-- Implements proper memory management to prevent leaks
-- Includes both recursive and iterative approaches to tree traversal
 
-## Future Improvements
-- Replace the simple hash with cryptographic functions (e.g., SHA-256)
-- Add proof-of-work or consensus mechanisms
-- Implement transaction validation
-- Enhance security features
 
