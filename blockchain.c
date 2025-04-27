@@ -6,7 +6,7 @@
 #define HASH_SIZE 64
 #define MAX_EVENTS 100
 
-// Core data structures - preserved from original
+// Core data structures 
 typedef struct {
     int type;
     char data[256];
@@ -40,7 +40,7 @@ typedef struct {
     Block* current_mining_block;
 } Blockchain;
 
-// Simplified hash function
+// simple hash function
 void hash_data(const char* input, char* output) {
     unsigned long hash = 5381;
     while (*input) hash = ((hash << 5) + hash) + *input++;
