@@ -203,15 +203,6 @@ All new blocks must pass these validation checks:
    - Replaces local chain with the new longest valid chain
    - Reconfigures mining operations to build upon the new chain tip
 
-## System Architecture Benefits
-
-### Security Properties
-- **Provable Security**: Cryptographic proofs enforce integrity at all architecture layers
-- **Distributed Trust**: Open participation model with no central authority
-- **Self-Stabilizing**: Automatic reorganization maintains chain consistency
-- **Transparent Audit**: All modifications are cryptographically detectable
-- **Deterministic Finality**: Unambiguous consensus rules govern chain selection
-
 
 ## Immutability Mechanisms
 ### Cryptographic Hashing
@@ -293,20 +284,6 @@ Recovery process for offline nodes:
 3. **Continuation**: Begins mining new block on top of adopted chain  
 
 
-## Key Features
-- **Block Creation and Linking**: New blocks maintain the chain's integrity by including the previous block's hash.
-- **Dynamic Event Management**: Blocks can store multiple events with automatic capacity adjustment.
-- **Merkle Tree Integration**: Events in each block are secured using a Merkle tree structure.
-- **Memory Management**: Proper allocation and deallocation to prevent memory leaks.
-
-## Code Structure
-- **Data Structures**: `Event`, `MerkleNode`, `Block`, and `Blockchain`
-- **Hashing Functions**: Simple hash implementation (replaceable with cryptographic algorithms)
-- **Merkle Tree Operations**: Creation, maintenance, and memory management
-- **Blockchain Operations**: Block creation, event addition, and chain validation
-
-## Usage Example
-The `main` function demonstrates creating a blockchain, adding various transaction events, and displaying the resulting chain structure.
 
 
 
