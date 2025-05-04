@@ -1,4 +1,4 @@
-# Check the readme on github for more visibility of diagrams 
+
 
 # Simple Blockchain Implementation in C
 
